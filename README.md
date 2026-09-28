@@ -101,11 +101,33 @@ images, a colour and an accent colour.
   (for example *Roboto Flex*, *Anybody* or *Encode Sans*) and update the stylesheet URL.
 
 **Cursor labels**: add `data-cursor="Label"` to any element to show a label bubble over it.
+Add `data-cursor-quiet` to keep the dot small over an element that has its own hover effect
+(buttons with a fill do this automatically).
+
+## Motion system
+
+Reveals and button interactions share a small vocabulary, all in `Theme.tsx`, so everything
+moves the same way:
+
+| On screen | How it moves | Helper |
+| --- | --- | --- |
+| Images | Wipe open from the bottom while the image settles from a slight zoom | inline `clipPath` |
+| Text blocks | Rise 20px and fade in, once, as they enter | `revealProps(still, delay)` |
+| Lists | Rows cascade in turn; each row's hairline draws from the left | `listReveal` + `itemReveal` + `<Rule />` |
+| Hairlines | Draw from the left | `<RevealRule />` |
+| Pill and round buttons | A fill grows from where the pointer enters and shrinks to where it leaves; press scales to 96% | `.el-fill` + `trackFill`, `.el-press` |
+| Filter chips and toggles | The same fill as a light tint | `.el-fill--tint` |
+| Small labels | Letters roll up in a quick wave | `<RollText>` |
+| Arrows | Leave along their direction while a second arrow arrives | `<Arrow swap />` |
+| Inline links | Underline draws in from the left and leaves to the right | `.el-uline` |
+| Round icon buttons, copy email | Lean toward the pointer | `useMagnetic()` |
+
+Everything also runs on keyboard focus, and hover effects only apply on devices that can hover.
 
 ## Motion and accessibility
 
 - Visitors who set *reduce motion* skip the preloader and get instant transitions; the
-  stretch effects stay still.
+  stretch effects stay still. Reveals only fade, with no movement.
 - In a case study: **Esc** closes, **←** / **→** move between projects, focus stays inside
   the dialog, and it returns to the card you opened when you close.
 - The custom cursor only runs with a mouse or trackpad. Touch screens get the scroll-driven

@@ -5,7 +5,7 @@
 import * as React from "react"
 import { useEffect, useLayoutEffect, useRef, useState } from "react"
 import { RenderTarget } from "framer"
-import { motion, useReducedMotion, useScroll, useTransform } from "framer-motion"
+import { motion, useMotionValue, useReducedMotion, useScroll, useSpring, useTransform } from "framer-motion"
 
 /* ------------------------------------------------------------------ */
 /*  Tokens — edit these                                                 */
@@ -102,12 +102,43 @@ export const GLOBAL_CSS =
 .el-elastic__line{display:block;overflow:hidden;padding:0 .05em .16em;margin:0 -.05em -.16em}
 .el-elastic__letter{display:inline-block}
 .el-elastic__measure{position:absolute;left:0;top:0;visibility:hidden;white-space:pre;font-size:100px;pointer-events:none}
-.el-uline{background:linear-gradient(currentColor,currentColor) 0 100%/0% 1px no-repeat;transition:background-size .5s var(--el-ease)}
-.el-hover:hover .el-uline,.el-hover:focus-visible .el-elastic{position:relative;container-type:inline-size;font-weight:560;line-height:.92;letter-spacing:-.005em;white-space:nowrap;display:block}
-.el-elastic__line{display:block;overflow:hidden;padding:0 .05em .16em;margin:0 -.05em -.16em}
-.el-elastic__letter{display:inline-block}
-.el-elastic__measure{position:absolute;left:0;top:0;visibility:hidden;white-space:pre;font-size:100px;pointer-events:none}
-.el-uline{background-size:100% 1px}
+/* Underline draws in from the left and leaves to the right. */
+.el-uline{background:linear-gradient(currentColor,currentColor) 100% 100%/0% 1px no-repeat;transition:background-size .55s var(--el-ease)}
+.el-hover:focus-visible .el-uline{background-size:100% 1px;background-position:0 100%}
+/* Hairline that draws from the left when revealed. Its parent needs position:relative. */
+.el-rule{position:absolute;left:0;right:0;bottom:0;height:1px;background:var(--el-line);transform-origin:0 50%;pointer-events:none}
+.el-rule--top{top:0;bottom:auto}
+/* Label whose letters roll up one after another, replaced by a copy from below (text-shadow). */
+.el-roll{position:relative;display:inline-block;overflow:hidden;vertical-align:top;line-height:1.3;height:1.3em;white-space:nowrap}
+.el-roll__c{display:inline-block;white-space:pre;text-shadow:0 1.3em currentColor;transition:transform .55s var(--el-ease)}
+.el-hover:focus-visible .el-roll__c{transform:translateY(-1.3em)}
+/* Arrow that leaves along its direction while a second one arrives behind it. */
+.el-arrow{position:relative;display:inline-grid;overflow:hidden;flex:none;vertical-align:middle}
+.el-arrow>span{grid-area:1/1;display:block;transition:transform .5s var(--el-ease)}
+.el-arrow svg{display:block}
+.el-arrow>span+span{transform:translate(calc(var(--ax) * -110%),calc(var(--ay) * -110%))}
+.el-hover:focus-visible .el-arrow>span:first-child{transform:translate(calc(var(--ax) * 110%),calc(var(--ay) * 110%))}
+.el-hover:focus-visible .el-arrow>span+span{transform:none;transition-delay:.06s}
+/* Tactile press. Uses the scale property so it composes with motion transforms.
+   Declared before .el-fill so a filled button keeps its colour transitions. */
+.el-press{transition:scale .3s var(--el-ease)}
+.el-press:active{scale:.96;transition-duration:.12s}
+/* Fill that grows from where the pointer enters and shrinks to where it leaves (see trackFill). */
+@property --el-fr{syntax:"<length>";inherits:false;initial-value:0px}
+.el-fill{position:relative;isolation:isolate;transition:color .4s var(--el-ease),border-color .4s var(--el-ease),scale .3s var(--el-ease)}
+.el-fill::before{content:"";position:absolute;inset:0;z-index:-1;border-radius:inherit;pointer-events:none;--el-fr:0px;background:radial-gradient(circle var(--el-fr) at var(--el-fx,50%) var(--el-fy,50%),var(--el-fill-bg,var(--el-ink)) calc(100% - .5px),transparent 100%);transition:--el-fr .6s var(--el-ease)}
+.el-fill:focus-visible::before,.el-hover:focus-visible .el-fill::before{--el-fr:var(--el-fd,240px)}
+.el-fill:not(.el-fill--tint):focus-visible,.el-hover:focus-visible .el-fill:not(.el-fill--tint){color:var(--el-fill-fg,var(--el-bg));border-color:var(--el-fill-bg,var(--el-ink))}
+.el-fill--tint{--el-fill-bg:color-mix(in srgb,var(--el-ink) 7%,transparent)}
+/* Hover states only for real hover, so taps on touch screens don't leave them stuck on. */
+@media (hover: hover){
+  .el-hover:hover .el-uline{background-size:100% 1px;background-position:0 100%}
+  .el-hover:hover .el-roll__c{transform:translateY(-1.3em)}
+  .el-hover:hover .el-arrow>span:first-child{transform:translate(calc(var(--ax) * 110%),calc(var(--ay) * 110%))}
+  .el-hover:hover .el-arrow>span+span{transform:none;transition-delay:.06s}
+  .el-fill:hover::before,.el-hover:hover .el-fill::before{--el-fr:var(--el-fd,240px)}
+  .el-fill:not(.el-fill--tint):hover,.el-hover:hover .el-fill:not(.el-fill--tint){color:var(--el-fill-fg,var(--el-bg));border-color:var(--el-fill-bg,var(--el-ink))}
+}
 .el-dot{position:relative;display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--el-accent);flex:none}
 .el-dot::after{content:"";position:absolute;inset:0;border-radius:50%;background:inherit;animation:el-pulse 2.2s var(--el-ease) infinite}
 .el-scroll-x{overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
@@ -292,13 +323,153 @@ export function UnfoldTitle({
     )
 }
 
-export function Arrow({ dir = "ne", size = 14, stroke = 1.5 }: { dir?: "ne" | "e" | "w" | "s" | "n"; size?: number; stroke?: number }) {
+const ARROW_VECTOR = { ne: [1, -1], e: [1, 0], s: [0, 1], w: [-1, 0], n: [0, -1] } as const
+
+/**
+ * `swap` makes the arrow leave along its own direction when its `.el-hover`
+ * parent is hovered, while a second arrow arrives from behind.
+ */
+export function Arrow({ dir = "ne", size = 14, stroke = 1.5, swap = false }: { dir?: "ne" | "e" | "w" | "s" | "n"; size?: number; stroke?: number; swap?: boolean }) {
     const rotate = { ne: 0, e: 45, s: 135, w: 225, n: -45 }[dir]
-    return (
+    const svg = (
         <svg width={size} height={size} viewBox="0 0 16 16" fill="none" aria-hidden="true" style={{ transform: `rotate(${rotate}deg)`, flex: "none" }}>
             <path d="M4 12L12 4M12 4H5.5M12 4V10.5" stroke="currentColor" strokeWidth={stroke} strokeLinecap="square" />
         </svg>
     )
+    if (!swap) return svg
+    const [ax, ay] = ARROW_VECTOR[dir]
+    return (
+        <span className="el-arrow" aria-hidden="true" style={{ "--ax": ax, "--ay": ay } as React.CSSProperties}>
+            <span>{svg}</span>
+            <span>{svg}</span>
+        </span>
+    )
+}
+
+/* ------------------------------------------------------------------ */
+/*  Motion system                                                       */
+/*  Images wipe in, text rises and fades, hairlines draw from the left, */
+/*  lists cascade. Everything reveals once and uses the same easing.    */
+/* ------------------------------------------------------------------ */
+
+export const REVEAL_VIEWPORT = { once: true, margin: "0px 0px -10% 0px" }
+
+/** Fade-and-rise for a block of text as it scrolls into view. */
+export function revealProps(still: boolean, delay = 0) {
+    return {
+        initial: still ? false : ({ opacity: 0, y: 20 } as const),
+        whileInView: { opacity: 1, y: 0 },
+        viewport: REVEAL_VIEWPORT,
+        transition: { duration: 0.9, ease: EASE_OUT, delay },
+    }
+}
+
+/** Parent of a cascading list: its `itemReveal` children follow one another. */
+export function listReveal(still: boolean, delay = 0, stagger = 0.07) {
+    return {
+        initial: still ? (false as const) : "hidden",
+        whileInView: "show",
+        viewport: REVEAL_VIEWPORT,
+        variants: { hidden: {}, show: { transition: { delayChildren: delay, staggerChildren: stagger } } },
+    }
+}
+
+export const itemReveal = {
+    hidden: { opacity: 0, y: 14 },
+    show: { opacity: 1, y: 0, transition: { duration: 0.8, ease: EASE_OUT } },
+}
+
+export const ruleReveal = {
+    hidden: { scaleX: 0 },
+    show: { scaleX: 1, transition: { duration: 1.1, ease: EASE_IN_OUT } },
+}
+
+/** A hairline that draws in with its parent's variants (inside a `listReveal`). */
+export function Rule({ top = false }: { top?: boolean }) {
+    return <motion.span aria-hidden="true" className={`el-rule ${top ? "el-rule--top" : ""}`} variants={ruleReveal} />
+}
+
+/** A hairline that draws in on its own when it scrolls into view. */
+export function RevealRule({ still, top = false, delay = 0 }: { still: boolean; top?: boolean; delay?: number }) {
+    return (
+        <motion.span
+            aria-hidden="true"
+            className={`el-rule ${top ? "el-rule--top" : ""}`}
+            initial={still ? false : { scaleX: 0 }}
+            whileInView={{ scaleX: 1 }}
+            viewport={REVEAL_VIEWPORT}
+            transition={{ duration: 1.1, ease: EASE_IN_OUT, delay }}
+        />
+    )
+}
+
+/**
+ * A short label whose letters roll up in a quick wave when its `.el-hover`
+ * parent is hovered. Screen readers get the plain text.
+ */
+export function RollText({ children }: { children: string }) {
+    const chars = Array.from(children)
+    // Long labels ripple faster so the whole wave stays under ~0.3s.
+    const step = Math.min(18, 300 / Math.max(1, chars.length))
+    return (
+        <span className="el-roll">
+            <span className="el-sr">{children}</span>
+            <span aria-hidden="true">
+                {chars.map((c, i) => (
+                    <span key={i} className="el-roll__c" style={{ transitionDelay: `${Math.round(i * step)}ms` }}>
+                        {c}
+                    </span>
+                ))}
+            </span>
+        </span>
+    )
+}
+
+/**
+ * Pointer handler for `.el-fill` buttons: records where the pointer entered
+ * (or left) so the fill grows from, and shrinks back to, that point.
+ * Put it on the element with `.el-fill`, or on a parent that contains one.
+ */
+export function trackFill(e: React.PointerEvent<HTMLElement>) {
+    if (e.pointerType === "touch") return
+    const host = e.currentTarget
+    const el = host.classList.contains("el-fill") ? host : host.querySelector<HTMLElement>(".el-fill")
+    if (!el) return
+    const now = performance.now()
+    // A quick pass-through keeps its entry point, so the circle never jumps mid-grow.
+    if (e.type === "pointerleave" && now - Number(el.dataset.fillAt || 0) < 320) return
+    if (e.type === "pointerenter") el.dataset.fillAt = String(now)
+    const r = el.getBoundingClientRect()
+    el.style.setProperty("--el-fx", `${(e.clientX - r.left).toFixed(1)}px`)
+    el.style.setProperty("--el-fy", `${(e.clientY - r.top).toFixed(1)}px`)
+    el.style.setProperty("--el-fd", `${Math.ceil(Math.hypot(r.width, r.height)) + 2}px`)
+}
+
+/**
+ * Pulls an element toward the pointer while it moves over it (mouse only),
+ * and springs it back on leave. Spread `x`/`y` into the element's style.
+ */
+export function useMagnetic<T extends HTMLElement>(strength = 0.3, spring = { stiffness: 170, damping: 13, mass: 0.5 }) {
+    const fine = useFinePointer()
+    const reduce = !!useReducedMotion()
+    const ref = useRef<T>(null)
+    const tx = useMotionValue(0)
+    const ty = useMotionValue(0)
+    const x = useSpring(tx, spring)
+    const y = useSpring(ty, spring)
+    const onPointerMove = (e: React.PointerEvent) => {
+        const el = ref.current
+        if (!el || !fine || reduce || e.pointerType === "touch") return
+        const r = el.getBoundingClientRect()
+        // Measure from the resting centre, not wherever the spring has carried it.
+        tx.set((e.clientX - (r.left + r.width / 2 - x.get())) * strength)
+        ty.set((e.clientY - (r.top + r.height / 2 - y.get())) * strength)
+    }
+    const onPointerLeave = () => {
+        tx.set(0)
+        ty.set(0)
+    }
+    return { ref, x, y, onPointerMove, onPointerLeave }
 }
 
 export function Cross({ size = 14, stroke = 1.5 }: { size?: number; stroke?: number }) {

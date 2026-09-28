@@ -44,7 +44,9 @@ function CursorLayer({ hideNative, bubbleSize }: Props) {
         const read = (target: Element | null) => {
             const labelled = target?.closest?.("[data-cursor]")
             setLabel(labelled?.getAttribute("data-cursor") || null)
-            setHot(!!target?.closest?.("a,button,[role='button'],label,summary,input,select,textarea"))
+            // Buttons with their own fill keep the dot small, so the two don't compete.
+            const quiet = target?.closest?.(".el-fill,[data-cursor-quiet]")
+            setHot(!quiet && !!target?.closest?.("a,button,[role='button'],label,summary,input,select,textarea"))
             setHide(!!target?.closest?.("[data-cursor-hide]"))
         }
         // Re-read what's under the pointer when the page changes without the mouse moving

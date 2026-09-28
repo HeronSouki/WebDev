@@ -4,11 +4,11 @@
 // On phones it becomes a full-screen menu.
 
 import * as React from "react"
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { addPropertyControls, ControlType } from "framer"
-import { motion, AnimatePresence, useScroll, useMotionValueEvent } from "framer-motion"
-import { ThemeStyles, FlexText, EASE_OUT, EASE_IN_OUT, isStaticTarget, scrollToAnchor, useLocalTime, useMounted, useMedia } from "./Theme.tsx"
+import { motion, AnimatePresence, MotionConfig, useScroll, useMotionValueEvent } from "framer-motion"
+import { ThemeStyles, FlexText, RollText, EASE_OUT, EASE_IN_OUT, isStaticTarget, scrollToAnchor, trackFill, useIntroReady, useLocalTime, useMounted, useMedia } from "./Theme.tsx"
 
 const CSS = `
 .el-nav{position:fixed;top:0;left:0;right:0;z-index:900;pointer-events:none}
@@ -17,12 +17,13 @@ const CSS = `
 .el-nav__bar[data-scrolled="true"]{background:color-mix(in srgb,var(--el-bg) 78%,transparent);-webkit-backdrop-filter:blur(14px) saturate(1.3);backdrop-filter:blur(14px) saturate(1.3);box-shadow:0 1px 0 var(--el-line)}
 .el-nav__brand{justify-self:start;font-weight:640;letter-spacing:-.01em;display:inline-flex;align-items:center;gap:10px}
 .el-nav__mid{display:flex;gap:18px;align-items:center;color:var(--el-muted)}
-.el-nav__links{justify-self:end;display:flex;align-items:center;gap:clamp(16px,2.2vw,32px)}
+.el-nav__links{position:relative;justify-self:end;display:flex;align-items:center;gap:clamp(16px,2.2vw,32px)}
 .el-nav__link{position:relative;display:inline-flex;align-items:center;gap:6px;padding:6px 0}
-.el-nav__link[data-active="true"]::before{content:"";position:absolute;left:-10px;top:50%;width:4px;height:4px;margin-top:-2px;border-radius:50%;background:var(--el-accent)}
+.el-nav__marker{position:absolute;left:-10px;top:50%;width:4px;height:4px;margin-top:-2px;border-radius:50%;background:var(--el-accent);pointer-events:none}
 .el-nav__status{display:inline-flex;align-items:center;gap:10px;padding:8px 14px 8px 12px;border-radius:999px;border:1px solid var(--el-line);white-space:nowrap}
-.el-nav__status:hover{border-color:var(--el-ink)}
-.el-nav__menu-btn{display:none;justify-self:end}
+.el-nav__menu-btn{display:none;justify-self:end;padding:6px 0}
+.el-nav__menu-label{position:relative;display:block;width:6ch;height:1.35em;overflow:hidden;text-align:right}
+.el-nav__menu-label>span{position:absolute;right:0;top:0}
 .el-menu{position:fixed;inset:0;z-index:1;background:var(--el-ink);color:var(--el-bg);display:flex;flex-direction:column;justify-content:space-between;padding:calc(88px + env(safe-area-inset-top,0px)) var(--el-gutter) calc(28px + env(safe-area-inset-bottom,0px));pointer-events:auto}
 .el-menu__links{display:flex;flex-direction:column;gap:4px}
 .el-menu__link{display:block;overflow:hidden;font-size:clamp(52px,15vw,120px);line-height:1;letter-spacing:-.02em;padding-bottom:.06em}
@@ -77,6 +78,9 @@ export default function Navigation(props: Props) {
     const { name, role, location, timeZone, links, status, statusHref, showStatus, hideOnScroll } = props
     const isStatic = isStaticTarget()
     const mounted = useMounted()
+    const introReady = useIntroReady()
+    const entered = isStatic || introReady
+    const [settled, setSettled] = useState(false)
     const time = useLocalTime(timeZone)
     const phone = useMedia("(max-width: 809px)")
     const [hidden, setHidden] = useState(false)
@@ -84,6 +88,21 @@ export default function Navigation(props: Props) {
     const [open, setOpen] = useState(false)
     const active = useActiveSection(links.map((l) => idOf(l.href)).filter(Boolean))
     const { scrollY } = useScroll()
+    const linkRefs = useRef<(HTMLAnchorElement | null)[]>([])
+    const [markerX, setMarkerX] = useState<number | null>(null)
+    const activeIndex = links.findIndex((l) => active !== null && idOf(l.href) === active)
+
+    // The active-section marker slides between links instead of jumping.
+    useEffect(() => {
+        const measure = () => {
+            const el = linkRefs.current[activeIndex]
+            if (el && el.offsetWidth) setMarkerX(el.offsetLeft)
+        }
+        measure()
+        window.addEventListener("resize", measure)
+        ;(document as any).fonts?.ready?.then(measure)
+        return () => window.removeEventListener("resize", measure)
+    }, [activeIndex, links.length])
 
     useMotionValueEvent(scrollY, "change", (y) => {
         const prev = scrollY.getPrevious() ?? 0
@@ -124,8 +143,10 @@ export default function Navigation(props: Props) {
             data-scrolled={scrolled && !open}
             data-open={open}
             initial={false}
-            animate={{ y: hidden && !open ? "-110%" : "0%" }}
-            transition={{ duration: 0.6, ease: EASE_OUT }}
+            animate={{ y: (hidden || !entered) && !open ? "-110%" : "0%" }}
+            // The first entrance is timed with the hero; after that the bar only hides and returns.
+            transition={settled ? { duration: 0.6, ease: EASE_OUT } : { duration: 1.1, ease: EASE_OUT, delay: 0.35 }}
+            onAnimationComplete={() => entered && !settled && setSettled(true)}
         >
             <a href="#top" className="el-nav__brand el-hover" onClick={go("#top")} aria-label={`${name}, back to top`}>
                 <FlexText rest={[100, 640]} hover={[118, 700]}>
@@ -139,22 +160,44 @@ export default function Navigation(props: Props) {
                 </span>
             </div>
             <nav className="el-nav__links" aria-label="Main">
-                {links.map((l) => (
-                    <a key={l.label} href={l.href} onClick={go(l.href)} className="el-nav__link el-hover" data-active={active === idOf(l.href)}>
+                {links.map((l, i) => (
+                    <a
+                        key={l.label}
+                        ref={(el) => (linkRefs.current[i] = el)}
+                        href={l.href}
+                        onClick={go(l.href)}
+                        className="el-nav__link el-hover"
+                        data-active={active === idOf(l.href)}
+                    >
                         <FlexText rest={[100, 450]} hover={[122, 600]}>
                             {l.label}
                         </FlexText>
                     </a>
                 ))}
+                {markerX !== null && (
+                    <motion.span
+                        className="el-nav__marker"
+                        aria-hidden="true"
+                        initial={{ x: markerX, scale: 0 }}
+                        animate={{ x: markerX, scale: activeIndex >= 0 ? 1 : 0 }}
+                        transition={{ x: { type: "spring", stiffness: 320, damping: 26 }, scale: { duration: 0.4, ease: EASE_OUT } }}
+                    />
+                )}
                 {showStatus && (
-                    <a href={statusHref} onClick={go(statusHref)} className="el-nav__status el-label el-hover">
+                    <a href={statusHref} onClick={go(statusHref)} onPointerEnter={trackFill} onPointerLeave={trackFill} className="el-nav__status el-label el-hover el-fill el-press">
                         <span className="el-dot" />
-                        {status}
+                        <RollText>{status}</RollText>
                     </a>
                 )}
             </nav>
-            <button className="el-nav__menu-btn el-label el-hover" aria-expanded={open} aria-controls="el-menu" onClick={() => setOpen((v) => !v)}>
-                {open ? "Close" : "Menu"}
+            <button className="el-nav__menu-btn el-label el-press" aria-label={open ? "Close menu" : "Menu"} aria-expanded={open} aria-controls="el-menu" onClick={() => setOpen((v) => !v)}>
+                <span className="el-nav__menu-label">
+                    <AnimatePresence initial={false}>
+                        <motion.span key={open ? "close" : "menu"} initial={{ y: "100%" }} animate={{ y: "0%" }} exit={{ y: "-100%" }} transition={{ duration: 0.45, ease: EASE_OUT }}>
+                            {open ? "Close" : "Menu"}
+                        </motion.span>
+                    </AnimatePresence>
+                </span>
             </button>
         </motion.div>
     )
@@ -206,12 +249,14 @@ export default function Navigation(props: Props) {
     )
 
     const tree = (
-        <header className={`el el-nav ${isStatic ? "el-nav--static" : ""}`}>
-            <ThemeStyles />
-            <style>{CSS}</style>
-            {menu}
-            {bar}
-        </header>
+        <MotionConfig reducedMotion="user">
+            <header className={`el el-nav ${isStatic ? "el-nav--static" : ""}`}>
+                <ThemeStyles />
+                <style>{CSS}</style>
+                {menu}
+                {bar}
+            </header>
+        </MotionConfig>
     )
 
     if (isStatic || !mounted) return tree

@@ -8,7 +8,7 @@ import * as React from "react"
 import { useEffect, useRef, useState } from "react"
 import { addPropertyControls, ControlType } from "framer"
 import { motion, AnimatePresence, useScroll, useTransform, useReducedMotion } from "framer-motion"
-import { ThemeStyles, Arrow, ElasticText, ElasticMode, EASE_OUT, EASE_IN_OUT, isStaticTarget, scrollToAnchor, useIntroReady } from "./Theme.tsx"
+import { ThemeStyles, Arrow, ElasticText, ElasticMode, RollText, EASE_OUT, EASE_IN_OUT, isStaticTarget, scrollToAnchor, useIntroReady } from "./Theme.tsx"
 import { ART_CSS, Cover, Project, requestOpenProject, sampleProjects, useSharedProjects } from "./Covers.tsx"
 
 const CSS = `
@@ -24,10 +24,11 @@ const CSS = `
 .el-hero__cap-title{grid-column:1/-1;position:relative;display:block;font-size:15px;font-weight:560;line-height:1.3;height:1.3em;overflow:hidden}
 .el-hero__cap-title>span{position:absolute;left:0;top:0;white-space:nowrap}
 .el-hero__name{margin-top:clamp(36px,6.5vw,96px)}
-.el-hero__meta{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px 24px;border-top:1px solid var(--el-line);padding-top:14px;margin-top:clamp(22px,3vw,44px)}
+.el-hero__meta{position:relative;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px 24px;padding-top:14px;margin-top:clamp(22px,3vw,44px)}
 .el-hero__scroll{justify-self:end;display:inline-flex;gap:8px;align-items:center}
 @keyframes el-bob{0%,100%{transform:translateY(0)}50%{transform:translateY(3px)}}
 .el-hero__bob{display:inline-flex;animation:el-bob 1.6s ease-in-out infinite}
+.el-hero__scroll:hover .el-hero__bob,.el-hero__scroll:focus-visible .el-hero__bob{animation-play-state:paused}
 @media (max-width: 809px){
   .el-hero__top{flex-direction:column;align-items:stretch}
   .el-hero__reel{width:100%;flex-direction:row;align-items:flex-end;gap:16px}
@@ -68,7 +69,7 @@ function Reel({ projects, label, play, instant }: { projects: Project[] | null; 
         >
             <button
                 ref={frameRef}
-                className="el-hero__frame"
+                className="el-hero__frame el-press"
                 onClick={open}
                 onPointerEnter={() => setHover(true)}
                 onPointerLeave={() => setHover(false)}
@@ -150,11 +151,12 @@ export default function Hero(props: Props) {
 
     const words = statement.split(/\s+/).filter(Boolean)
     const meta = [discipline, location, availability].filter(Boolean)
-    const fade = (delay: number) => ({
-        initial: { opacity: 0, y: 14 },
-        animate: play ? { opacity: 1, y: 0 } : undefined,
-        transition: instant ? { duration: 0 } : { duration: 1, ease: EASE_OUT, delay },
-    })
+    // The meta row lands last: its rule draws across, then each item rises in turn.
+    const metaMotion = {
+        row: { hidden: {}, show: { transition: instant ? {} : { delayChildren: 0.7, staggerChildren: 0.08 } } },
+        rule: { hidden: { scaleX: 0 }, show: { scaleX: 1, transition: instant ? { duration: 0 } : { duration: 1.3, ease: EASE_IN_OUT } } },
+        item: { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0, transition: instant ? { duration: 0 } : { duration: 1, ease: EASE_OUT } } },
+    }
 
     return (
         <section ref={sectionRef} id="top" className="el el-hero">
@@ -184,22 +186,26 @@ export default function Hero(props: Props) {
                 <ElasticText as="h1" className="el-hero__name" text={name} play={play} instant={instant} mode={elastic} areaRef={sectionRef} scrollRange={[0.45, 0.9]} />
             </motion.div>
 
-            <motion.div className="el-hero__meta el-label" {...fade(0.75)}>
+            <motion.div className="el-hero__meta el-label" initial={instant ? false : "hidden"} animate={play ? "show" : "hidden"} variants={metaMotion.row}>
+                <motion.span aria-hidden="true" className="el-rule el-rule--top" variants={metaMotion.rule} />
                 {meta.map((m) => (
-                    <span key={m}>{m}</span>
+                    <motion.span key={m} variants={metaMotion.item}>
+                        {m}
+                    </motion.span>
                 ))}
-                <a
+                <motion.a
                     href={scrollTarget}
                     className="el-hero__scroll el-hover"
+                    variants={metaMotion.item}
                     onClick={(e) => {
                         if (scrollToAnchor(scrollTarget)) e.preventDefault()
                     }}
                 >
-                    <span className="el-uline">{scrollLabel}</span>
+                    <RollText>{scrollLabel}</RollText>
                     <span className="el-hero__bob">
-                        <Arrow dir="s" size={12} />
+                        <Arrow dir="s" size={12} swap />
                     </span>
-                </a>
+                </motion.a>
             </motion.div>
         </section>
     )

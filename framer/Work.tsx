@@ -7,8 +7,26 @@ import * as React from "react"
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { addPropertyControls, ControlType } from "framer"
-import { motion, AnimatePresence, MotionConfig, useMotionValue, useReducedMotion, useSpring, useTransform, useVelocity } from "framer-motion"
-import { ThemeStyles, Arrow, Cross, FlexText, UnfoldTitle, EASE_IN_OUT, EASE_OUT, isStaticTarget, scrollToAnchor, useFinePointer, useIsoLayoutEffect } from "./Theme.tsx"
+import { motion, AnimatePresence, MotionConfig, useMotionValue, useReducedMotion, useScroll, useSpring, useTransform, useVelocity } from "framer-motion"
+import {
+    ThemeStyles,
+    Arrow,
+    Cross,
+    FlexText,
+    RollText,
+    UnfoldTitle,
+    EASE_IN_OUT,
+    EASE_OUT,
+    isStaticTarget,
+    itemReveal,
+    listReveal,
+    revealProps,
+    scrollToAnchor,
+    trackFill,
+    useFinePointer,
+    useIsoLayoutEffect,
+    useMagnetic,
+} from "./Theme.tsx"
 import { ART_CSS, Cover, MOTIF_OPTIONS, MOTIF_TITLES, Project, galleryFrames, onOpenRequest, publishProjects, sampleProjects } from "./Covers.tsx"
 
 const CSS = `
@@ -20,7 +38,7 @@ const CSS = `
 .el-work__bar{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:clamp(28px,3.4vw,52px)}
 .el-work__filters{display:flex;gap:8px;min-width:0;margin:-4px;padding:4px}
 .el-chip{position:relative;display:inline-flex;align-items:baseline;gap:7px;padding:9px 16px;border-radius:999px;border:1px solid var(--el-line);white-space:nowrap;font-size:14px;line-height:1.2;transition:color .35s var(--el-ease),border-color .35s}
-.el-chip:hover{border-color:var(--el-ink)}
+@media (hover: hover){.el-chip:hover{border-color:var(--el-ink)}}
 .el-chip[aria-pressed="true"]{color:var(--el-bg);border-color:var(--el-ink)}
 .el-chip__pill{position:absolute;inset:-1px;border-radius:inherit;background:var(--el-ink)}
 .el-chip>span:not(.el-chip__pill){position:relative}
@@ -88,8 +106,10 @@ const CSS = `
 .el-case__bar{position:sticky;top:0;z-index:5;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:16px;padding:calc(12px + env(safe-area-inset-top,0px)) var(--el-gutter) 12px;background:color-mix(in srgb,var(--el-bg) 82%,transparent);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}
 .el-case__close{justify-self:start;display:inline-flex;gap:10px;align-items:center;padding:8px 0}
 .el-case__pager{justify-self:end;display:flex;gap:8px}
-.el-round{width:42px;height:42px;border-radius:50%;border:1px solid var(--el-line);display:grid;place-items:center;transition:background-color .3s,color .3s,border-color .3s}
-.el-round:hover{background:var(--el-ink);color:var(--el-bg);border-color:var(--el-ink)}
+.el-round{width:42px;height:42px;border-radius:50%;border:1px solid var(--el-line);display:grid;place-items:center}
+.el-case__close .el-round svg{transition:transform .6s var(--el-ease)}
+.el-case__close:focus-visible .el-round svg{transform:rotate(90deg)}
+@media (hover: hover){.el-case__close:hover .el-round svg{transform:rotate(90deg)}}
 .el-case__hero{position:relative;margin:0 var(--el-gutter);height:clamp(300px,68vh,860px);border-radius:3px;overflow:hidden;background:var(--el-surface)}
 .el-case__hero>div{position:absolute;inset:0}
 .el-case__head{padding:clamp(40px,6vw,96px) var(--el-gutter) 0;display:grid;gap:clamp(22px,2.6vw,36px)}
@@ -104,12 +124,12 @@ const CSS = `
 .el-case__facts{display:grid;grid-template-columns:auto minmax(0,1fr);gap:14px 28px;align-content:start;border-top:1px solid var(--el-line);padding-top:18px;font-size:16px;line-height:1.45}
 .el-case__facts dt{padding-top:3px}
 .el-case__text{display:grid;gap:28px;align-content:start;border-top:1px solid var(--el-line);padding-top:18px;font-size:clamp(17px,1.3vw,20px);line-height:1.62;max-width:62ch}
-.el-case__link{display:inline-flex;gap:10px;align-items:center;justify-self:start;padding:12px 18px;border-radius:999px;border:1px solid var(--el-ink);font-size:15px;transition:background-color .3s,color .3s}
-.el-case__link:hover{background:var(--el-ink);color:var(--el-bg)}
+.el-case__link{display:inline-flex;gap:10px;align-items:center;justify-self:start;padding:12px 18px;border-radius:999px;border:1px solid var(--el-ink);font-size:15px}
 .el-case__gallery{display:grid;grid-template-columns:1fr 1fr;gap:clamp(12px,1.6vw,24px);padding:0 var(--el-gutter)}
 .el-case__frame{position:relative;overflow:hidden;border-radius:3px;aspect-ratio:4/5;background:var(--el-surface)}
 .el-case__frame--wide{grid-column:1/-1;aspect-ratio:16/9}
 .el-case__frame>div{position:absolute;inset:0}
+.el-case__frame>.el-case__para{inset:-7% 0}
 .el-case__cta{display:flex;justify-content:space-between;align-items:center;gap:20px;flex-wrap:wrap;margin:clamp(56px,8vw,120px) var(--el-gutter) 0;padding:22px 0;border-top:1px solid var(--el-line);border-bottom:1px solid var(--el-line);font-size:clamp(18px,1.6vw,24px)}
 .el-case__cta a{display:inline-flex;gap:10px;align-items:center}
 .el-case__next{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,34%);gap:clamp(20px,4vw,64px);align-items:end;width:100%;text-align:left;padding:clamp(40px,6vw,96px) var(--el-gutter) calc(clamp(40px,6vw,96px) + env(safe-area-inset-bottom,0px))}
@@ -429,6 +449,49 @@ function IndexRow({ project, index, k, still, active, setHovered, onOpen, cursor
 
 type Flight = { key: number; project: Project; from: Rect; to: Rect | null; back?: boolean }
 
+/** Round arrow button: leans toward the pointer, fills from where it's entered. */
+function PagerButton({ dir, onClick, label }: { dir: "w" | "e"; onClick: () => void; label: string }) {
+    const magnet = useMagnetic<HTMLButtonElement>(0.35)
+    return (
+        <motion.button
+            ref={magnet.ref}
+            className="el-round el-fill el-hover el-press"
+            style={{ x: magnet.x, y: magnet.y }}
+            onClick={onClick}
+            onPointerMove={magnet.onPointerMove}
+            onPointerEnter={trackFill}
+            onPointerLeave={(e) => {
+                trackFill(e)
+                magnet.onPointerLeave()
+            }}
+            aria-label={label}
+        >
+            <Arrow dir={dir} swap />
+        </motion.button>
+    )
+}
+
+/** Gallery image that wipes open, then drifts slightly slower than the page as you read. */
+function GalleryFrame({ project, variant, wide, reduce, root }: { project: Project; variant: number; wide: boolean; reduce: boolean; root: React.RefObject<HTMLDivElement> }) {
+    const ref = useRef<HTMLElement>(null)
+    const { scrollYProgress } = useScroll({ container: root, target: ref, offset: ["start end", "end start"] })
+    const y = useTransform(scrollYProgress, [0, 1], ["-5%", "5%"])
+    return (
+        <motion.figure
+            ref={ref}
+            className={`el-case__frame ${wide ? "el-case__frame--wide" : ""}`}
+            initial={reduce ? false : { clipPath: "inset(12% 8% 12% 8%)", opacity: 0 }}
+            whileInView={{ clipPath: "inset(0% 0% 0% 0%)", opacity: 1 }}
+            viewport={{ root, once: true, amount: 0.1 }}
+            transition={{ duration: 1.2, ease: EASE_OUT }}
+        >
+            <motion.div className="el-case__para" style={reduce ? undefined : { y }}>
+                <Cover project={project} variant={variant} active sizes={wide ? "100vw" : "50vw"} />
+            </motion.div>
+        </motion.figure>
+    )
+}
+
 function Title({ text, show }: { text: string; show: boolean }) {
     let n = 0
     return (
@@ -606,23 +669,19 @@ function CaseStudy({
                 transition={{ duration: leaving ? 0.5 : 0.45, ease: EASE_OUT, delay: leaving && flight ? 0.15 : 0 }}
             >
                 <div className="el-case__bar">
-                    <button ref={closeRef} className="el-case__close el-label el-hover" onClick={() => close()}>
-                        <span className="el-round" aria-hidden="true">
+                    <button ref={closeRef} className="el-case__close el-label el-hover" data-cursor-quiet="" onClick={() => close()} onPointerEnter={trackFill} onPointerLeave={trackFill}>
+                        <span className="el-round el-fill" aria-hidden="true">
                             <Cross />
                         </span>
-                        <span className="el-uline">Close</span>
+                        <RollText>Close</RollText>
                     </button>
                     <span className="el-case__count el-label el-muted" aria-live="polite">
                         {pad(pos + 1)} / {pad(order.length)}
                     </span>
                     {order.length > 1 && (
                         <div className="el-case__pager">
-                            <button className="el-round" onClick={() => go(pos - 1)} aria-label="Previous project">
-                                <Arrow dir="w" />
-                            </button>
-                            <button className="el-round" onClick={() => go(pos + 1)} aria-label="Next project">
-                                <Arrow dir="e" />
-                            </button>
+                            <PagerButton dir="w" onClick={() => go(pos - 1)} label="Previous project" />
+                            <PagerButton dir="e" onClick={() => go(pos + 1)} label="Next project" />
                         </div>
                     )}
                 </div>
@@ -666,29 +725,20 @@ function CaseStudy({
                                 <p key={i}>{para}</p>
                             ))}
                             {project.link && (
-                                <a className="el-case__link" href={project.link} target="_blank" rel="noopener noreferrer">
-                                    Visit the project <Arrow size={13} />
+                                <a className="el-case__link el-hover el-fill el-press" href={project.link} target="_blank" rel="noopener noreferrer" onPointerEnter={trackFill} onPointerLeave={trackFill}>
+                                    <FlexText rest={[100, 450]} hover={[116, 560]}>
+                                        Visit the project
+                                    </FlexText>
+                                    <Arrow size={13} swap />
                                 </a>
                             )}
                         </motion.div>
                     </div>
 
                     <div className="el-case__gallery">
-                        {frames.map((f, i) => {
-                            const wide = i === 0 || (i === frames.length - 1 && frames.length % 2 === 0)
-                            return (
-                                <motion.figure
-                                    key={f}
-                                    className={`el-case__frame ${wide ? "el-case__frame--wide" : ""}`}
-                                    initial={reduce ? false : { clipPath: "inset(12% 8% 12% 8%)", opacity: 0 }}
-                                    whileInView={{ clipPath: "inset(0% 0% 0% 0%)", opacity: 1 }}
-                                    viewport={{ root: scrollRef, once: true, amount: 0.1 }}
-                                    transition={{ duration: 1.2, ease: EASE_OUT }}
-                                >
-                                    <Cover project={project} variant={f} active sizes={wide ? "100vw" : "50vw"} />
-                                </motion.figure>
-                            )
-                        })}
+                        {frames.map((f, i) => (
+                            <GalleryFrame key={f} project={project} variant={f} wide={i === 0 || (i === frames.length - 1 && frames.length % 2 === 0)} reduce={reduce} root={scrollRef} />
+                        ))}
                     </div>
 
                     {ctaLabel && (
@@ -706,7 +756,7 @@ function CaseStudy({
                                 <FlexText rest={[100, 520]} hover={[122, 640]}>
                                     {ctaLabel}
                                 </FlexText>
-                                <Arrow dir="e" size={16} />
+                                <Arrow dir="e" size={16} swap />
                             </a>
                         </div>
                     )}
@@ -856,22 +906,34 @@ export default function Work(props: Props) {
                     {title}
                     <sup>({pad(projects.length)})</sup>
                 </UnfoldTitle>
-                {intro && <p className="el-work__intro">{intro}</p>}
+                {intro && (
+                    <motion.p className="el-work__intro" {...revealProps(still, 0.15)}>
+                        {intro}
+                    </motion.p>
+                )}
             </div>
 
             {(showFilters || showViewToggle) && (
                 <div className="el-work__bar">
                     {showFilters ? (
-                        <motion.div className="el-work__filters el-scroll-x" layoutScroll role="group" aria-label="Filter projects">
+                        <motion.div className="el-work__filters el-scroll-x" layoutScroll role="group" aria-label="Filter projects" {...listReveal(still, 0, 0.05)}>
                             {[allLabel, ...categories].map((c) => {
                                 const count = c === allLabel ? projects.length : projects.filter((p) => p.category === c).length
                                 const on = c === filter
                                 return (
-                                    <button key={c} className="el-chip" aria-pressed={on} onClick={() => setFilter(c)}>
+                                    <motion.button
+                                        key={c}
+                                        className="el-chip el-fill el-fill--tint"
+                                        aria-pressed={on}
+                                        onClick={() => setFilter(c)}
+                                        onPointerEnter={trackFill}
+                                        onPointerLeave={trackFill}
+                                        variants={itemReveal}
+                                    >
                                         {on && <motion.span layoutId={`${uid}-chip`} className="el-chip__pill" transition={{ type: "spring", stiffness: 420, damping: 36 }} />}
                                         <span>{c}</span>
                                         <span className="el-chip__count">{pad(count)}</span>
-                                    </button>
+                                    </motion.button>
                                 )
                             })}
                         </motion.div>
@@ -879,9 +941,9 @@ export default function Work(props: Props) {
                         <span />
                     )}
                     {showViewToggle && (
-                        <div className="el-work__views" role="group" aria-label="Layout">
+                        <motion.div className="el-work__views" role="group" aria-label="Layout" {...revealProps(still, 0.2)}>
                             {(["grid", "index"] as const).map((v) => (
-                                <button key={v} className="el-view" aria-pressed={view === v} onClick={() => setView(v)}>
+                                <button key={v} className="el-view el-fill el-fill--tint" aria-pressed={view === v} onClick={() => setView(v)} onPointerEnter={trackFill} onPointerLeave={trackFill}>
                                     {view === v && <motion.span layoutId={`${uid}-view`} className="el-chip__pill" transition={{ type: "spring", stiffness: 420, damping: 36 }} />}
                                     <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true" fill="currentColor">
                                         {v === "grid" ? (
@@ -902,7 +964,7 @@ export default function Work(props: Props) {
                                     <span>{v === "grid" ? "Grid" : "Index"}</span>
                                 </button>
                             ))}
-                        </div>
+                        </motion.div>
                     )}
                 </div>
             )}

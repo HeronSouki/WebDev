@@ -6,7 +6,7 @@ import * as React from "react"
 import { useRef } from "react"
 import { addPropertyControls, ControlType } from "framer"
 import { motion, MotionConfig, MotionValue, useReducedMotion, useScroll, useTransform } from "framer-motion"
-import { ThemeStyles, EASE_OUT, isStaticTarget } from "./Theme.tsx"
+import { ThemeStyles, EASE_IN_OUT, EASE_OUT, REVEAL_VIEWPORT, Rule, isStaticTarget, itemReveal, listReveal, revealProps } from "./Theme.tsx"
 
 const CSS = `
 .el-about{background:var(--el-bg);padding:clamp(88px,11vw,168px) var(--el-gutter)}
@@ -18,8 +18,8 @@ const CSS = `
 .el-about__eyebrow{display:flex;justify-content:space-between;gap:16px;margin-bottom:clamp(20px,2.4vw,32px);color:var(--el-muted)}
 .el-about__bio{font-size:clamp(26px,3.2vw,50px);line-height:1.12;letter-spacing:-.018em;font-weight:440}
 .el-about__cols{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:clamp(24px,3vw,48px);margin-top:clamp(56px,7vw,112px)}
-.el-about__col h3{padding-bottom:14px;border-bottom:1px solid var(--el-line);color:var(--el-muted);font-weight:400}
-.el-about__col li{padding:11px 0;border-bottom:1px solid var(--el-line);font-size:16px;line-height:1.35}
+.el-about__col h3{position:relative;padding-bottom:14px;color:var(--el-muted);font-weight:400}
+.el-about__col li{position:relative;padding:11px 0;font-size:16px;line-height:1.35}
 .el-about__xp li{display:grid;grid-template-columns:minmax(84px,auto) 1fr;gap:16px;align-items:baseline}
 .el-about__xp small{display:block;color:var(--el-muted);font-size:14px;margin-top:2px}
 @media (max-width: 1023px){.el-about__cols{grid-template-columns:1fr 1fr}}
@@ -94,12 +94,8 @@ export default function About(props: Props) {
     const portraitY = useTransform(frameProgress, [0, 1], ["-6%", "6%"])
 
     const words = bio.split(/\s+/).filter(Boolean)
-    const reveal = (i: number) => ({
-        initial: isStatic ? false : ({ opacity: 0, y: 20 } as const),
-        whileInView: { opacity: 1, y: 0 },
-        viewport: { once: true, margin: "0px 0px -10% 0px" },
-        transition: { duration: 0.9, ease: EASE_OUT, delay: i * 0.1 },
-    })
+    // Columns start one after another; inside each, the heading and rows cascade with their rules.
+    const column = (i: number) => listReveal(isStatic, i * 0.12, 0.06)
 
     return (
         <MotionConfig reducedMotion="user">
@@ -107,20 +103,39 @@ export default function About(props: Props) {
                 <ThemeStyles />
                 <style>{CSS}</style>
                 <div className="el-about__grid">
-                    <motion.div className="el-about__side" {...reveal(0)}>
-                        <div className="el-about__frame el-grain" ref={frameRef}>
-                            <motion.div className="el-about__inner" style={{ y: still ? 0 : portraitY }}>
+                    <div className="el-about__side">
+                        {/* Same wipe as the project covers: the frame opens upward while the image settles. */}
+                        <motion.div
+                            className="el-about__frame el-grain"
+                            ref={frameRef}
+                            initial={isStatic ? false : { clipPath: "inset(100% 0% 0% 0%)" }}
+                            whileInView={{ clipPath: "inset(0% 0% 0% 0%)" }}
+                            viewport={REVEAL_VIEWPORT}
+                            transition={{ duration: 1.15, ease: EASE_IN_OUT }}
+                        >
+                            <motion.div
+                                className="el-about__inner"
+                                style={{ y: still ? 0 : portraitY }}
+                                initial={isStatic ? false : { scale: 1.25 }}
+                                whileInView={{ scale: 1 }}
+                                viewport={REVEAL_VIEWPORT}
+                                transition={{ duration: 1.6, ease: EASE_OUT }}
+                            >
                                 {portrait?.src ? <img src={portrait.src} srcSet={portrait.srcSet} alt={portrait.alt || name} sizes="(max-width: 809px) 90vw, 33vw" loading="lazy" /> : <PortraitPlaceholder />}
                             </motion.div>
-                        </div>
-                        {caption && <span className="el-label el-muted">{caption}</span>}
-                    </motion.div>
+                        </motion.div>
+                        {caption && (
+                            <motion.span className="el-label el-muted" {...revealProps(isStatic, 0.45)}>
+                                {caption}
+                            </motion.span>
+                        )}
+                    </div>
 
                     <div>
-                        <div className="el-about__eyebrow el-label">
+                        <motion.div className="el-about__eyebrow el-label" {...revealProps(isStatic)}>
                             <span>{label}</span>
                             <span>{name}</span>
-                        </div>
+                        </motion.div>
                         <p ref={bioRef} className="el-about__bio">
                             {words.map((w, i) => (
                                 <Word key={i} progress={bioProgress} range={[i / words.length, (i + 1) / words.length]} still={stillRef}>
@@ -130,33 +145,49 @@ export default function About(props: Props) {
                         </p>
 
                         <div className="el-about__cols">
-                            <motion.div className="el-about__col" {...reveal(0)}>
-                                <h3 className="el-label">{servicesTitle}</h3>
+                            <motion.div className="el-about__col" {...column(0)}>
+                                <motion.h3 className="el-label" variants={itemReveal}>
+                                    {servicesTitle}
+                                    <Rule />
+                                </motion.h3>
                                 <ul>
                                     {services.map((s) => (
-                                        <li key={s}>{s}</li>
+                                        <motion.li key={s} variants={itemReveal}>
+                                            {s}
+                                            <Rule />
+                                        </motion.li>
                                     ))}
                                 </ul>
                             </motion.div>
-                            <motion.div className="el-about__col" {...reveal(1)}>
-                                <h3 className="el-label">{clientsTitle}</h3>
+                            <motion.div className="el-about__col" {...column(1)}>
+                                <motion.h3 className="el-label" variants={itemReveal}>
+                                    {clientsTitle}
+                                    <Rule />
+                                </motion.h3>
                                 <ul>
                                     {clients.map((c) => (
-                                        <li key={c}>{c}</li>
+                                        <motion.li key={c} variants={itemReveal}>
+                                            {c}
+                                            <Rule />
+                                        </motion.li>
                                     ))}
                                 </ul>
                             </motion.div>
-                            <motion.div className="el-about__col el-about__xp" {...reveal(2)}>
-                                <h3 className="el-label">{experienceTitle}</h3>
+                            <motion.div className="el-about__col el-about__xp" {...column(2)}>
+                                <motion.h3 className="el-label" variants={itemReveal}>
+                                    {experienceTitle}
+                                    <Rule />
+                                </motion.h3>
                                 <ul>
                                     {experience.map((job) => (
-                                        <li key={job.years + job.role}>
+                                        <motion.li key={job.years + job.role} variants={itemReveal}>
                                             <span className="el-label el-muted">{job.years}</span>
                                             <span>
                                                 {job.role}
                                                 {job.place && <small>{job.place}</small>}
                                             </span>
-                                        </li>
+                                            <Rule />
+                                        </motion.li>
                                     ))}
                                 </ul>
                             </motion.div>
