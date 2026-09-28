@@ -47,6 +47,7 @@ function Reel({ projects, label, play, instant }: { projects: Project[] | null; 
     const count = projects?.length ?? 0
     const index = count ? tick % count : 0
     const project = projects?.[index]
+    const previous = tick > 0 && count ? projects?.[(tick - 1) % count] : undefined
 
     useEffect(() => {
         if (!play || instant || hover || count < 2) return
@@ -77,23 +78,26 @@ function Reel({ projects, label, play, instant }: { projects: Project[] | null; 
                 data-cursor="Open"
                 aria-label={project ? `Open ${project.title}` : "Selected work"}
             >
-                <AnimatePresence initial={false}>
-                    {project && (
-                        <motion.div
-                            key={tick}
-                            className="el-hero__slide"
-                            style={{ zIndex: tick + 1 }}
-                            initial={{ clipPath: "inset(100% 0% 0% 0%)" }}
-                            animate={{ clipPath: "inset(0% 0% 0% 0%)" }}
-                            exit={{ opacity: 1, transition: { duration: 1 } }}
-                            transition={{ duration: 0.95, ease: EASE_IN_OUT }}
-                        >
-                            <motion.div style={{ position: "absolute", inset: 0 }} initial={{ scale: 1.25 }} animate={{ scale: 1 }} transition={{ duration: 1.5, ease: EASE_OUT }}>
-                                <Cover project={project} active={hover} eager sizes="250px" />
-                            </motion.div>
+                {/* The previous slide stays underneath while the next one wipes in over it. */}
+                {previous && (
+                    <div className="el-hero__slide" style={{ zIndex: 0 }}>
+                        <Cover project={previous} sizes="250px" />
+                    </div>
+                )}
+                {project && (
+                    <motion.div
+                        key={tick}
+                        className="el-hero__slide"
+                        style={{ zIndex: 1 }}
+                        initial={tick === 0 ? false : { clipPath: "inset(100% 0% 0% 0%)" }}
+                        animate={{ clipPath: "inset(0% 0% 0% 0%)" }}
+                        transition={{ duration: 0.95, ease: EASE_IN_OUT }}
+                    >
+                        <motion.div style={{ position: "absolute", inset: 0 }} initial={tick === 0 ? false : { scale: 1.25 }} animate={{ scale: 1 }} transition={{ duration: 1.5, ease: EASE_OUT }}>
+                            <Cover project={project} active={hover} eager sizes="250px" />
                         </motion.div>
-                    )}
-                </AnimatePresence>
+                    </motion.div>
+                )}
             </button>
             <div className="el-hero__caption">
                 <span className="el-label el-muted">{label}</span>
