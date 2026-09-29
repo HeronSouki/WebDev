@@ -38,16 +38,16 @@ image, and closing sends it back to its card.
 ### Option A — push with the Server API (fastest)
 
 1. In Framer, open the project, press **Cmd+K → Open settings → API Keys**, and create a key.
-2. Run:
+2. From the repository root, run:
 
    ```bash
    npm install
-   FRAMER_API_KEY=your-key npm run push
+   FRAMER_API_KEY=your-key npm run push -w elastic
    ```
 
    This creates (or updates) all ten files under **Assets → Code** in
    `Tranquil-Biscuits` and type-checks them inside Framer. To target another project,
-   pass its URL: `npm run push -- https://framer.com/projects/…`.
+   pass its URL: `npm run push -w elastic -- https://framer.com/projects/…`.
 
 ### Option B — copy by hand
 
@@ -115,12 +115,16 @@ images, a colour and an accent colour.
 
 ## Preview locally
 
+From the repository root:
+
 ```bash
 npm install
-npm run dev        # http://localhost:5173
-npm run build      # single-file preview in dist/index.html
-npm run typecheck
+npm run dev -w elastic         # http://localhost:5173
+npm run build -w elastic       # single-file preview in sites/elastic/dist/index.html
+npm run typecheck -w elastic
 ```
+
+Or `cd sites/elastic` and drop the `-w elastic`.
 
 The preview in `preview/` renders the same files from `framer/` with a small stand-in for
 Framer's `framer` module (`preview/framer-shim.tsx`), using each component's default props.

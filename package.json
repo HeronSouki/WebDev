@@ -1,0 +1,14 @@
+{
+  "name": "webdev",
+  "private": true,
+  "description": "Websites and site templates, one project per folder under sites/.",
+  "type": "module",
+  "workspaces": [
+    "sites/*"
+  ],
+  "scripts": {
+    "new": "node scripts/new-site.mjs",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "build": "npm run build --workspaces --if-present"
+  }
+}

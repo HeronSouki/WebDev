@@ -2,8 +2,8 @@
 // Copies the Elastic code components into a Framer project with Framer's Server API
 // (https://www.framer.com/developers/server-api-introduction).
 //
-//   FRAMER_API_KEY=... npm run push                      # default project below
-//   FRAMER_API_KEY=... npm run push -- <project url>     # any other project
+//   FRAMER_API_KEY=... npm run push -w elastic                      # default project below
+//   FRAMER_API_KEY=... npm run push -w elastic -- <project url>     # any other project
 //
 // Create the key in Framer: open the project, Cmd+K → "Open settings" → API Keys.
 // Existing files with the same name are updated in place; Framer keeps their version history.
